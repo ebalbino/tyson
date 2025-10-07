@@ -1,20 +1,10 @@
 use std::fmt;
 use std::ops::Deref;
-use std::str::{CharIndices, FromStr};
-use tyson::{Arena, List, Node};
+use std::str::CharIndices;
+use tyson::List;
 
-#[derive(Copy, Clone)]
-pub struct StrView {
-    data: *const u8,
-    len: usize,
-}
-
-struct StrIntern<'arena> {
-    strings: List<'arena, StrView>,
-}
-
-#[derive(Debug, Copy, Clone)]
-pub enum Token {
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum Token<'code> {
     LParen,
     RParen,
     LBracket,
@@ -23,8 +13,8 @@ pub enum Token {
     RBrace,
     Integer(i64),
     Float(f64),
-    String(StrView),
-    Symbol(StrView),
+    String(&'code str),
+    Symbol(&'code str),
 }
 
 pub struct Tokenizer<'code> {
@@ -59,7 +49,7 @@ impl<'code> Tokenizer<'code> {
         }
     }
 
-    fn read_number(&mut self) -> Option<StrView> {
+    fn read_number(&mut self) -> Option<&'code str> {
         let mut start = None;
         let mut end = None;
 
@@ -76,10 +66,10 @@ impl<'code> Tokenizer<'code> {
             self.advance();
         }
 
-        Some(StrView::from_str(&self.code[start?..end?]))
+        Some(&self.code[start?..end?])
     }
 
-    fn read_string(&mut self) -> Option<StrView> {
+    fn read_string(&mut self) -> Option<&'code str> {
         let mut start = None;
         let mut end = None;
 
@@ -89,7 +79,7 @@ impl<'code> Tokenizer<'code> {
                 start = Some(i);
             }
 
-            if c == '"' || c == '\'' {
+            if c == '"' {
                 end = Some(i);
                 self.advance(); // Skip the closing quote
                 break;
@@ -98,10 +88,10 @@ impl<'code> Tokenizer<'code> {
             self.advance();
         }
 
-        Some(StrView::from_str(&self.code[start?..end?]))
+        Some(&self.code[start?..end?])
     }
 
-    fn read_symbol(&mut self) -> Option<StrView> {
+    fn read_symbol(&mut self) -> Option<&'code str> {
         let mut start = None;
         let mut end = None;
 
@@ -118,12 +108,12 @@ impl<'code> Tokenizer<'code> {
             self.advance();
         }
 
-        Some(StrView::from_str(&self.code[start?..end?]))
+        Some(&self.code[start?..end?])
     }
 }
 
 impl<'code> Iterator for Tokenizer<'code> {
-    type Item = Token;
+    type Item = Token<'code>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.eat_whitespace();
@@ -163,41 +153,6 @@ impl<'code> Iterator for Tokenizer<'code> {
             }
             (_, _c) => self.read_symbol().and_then(|s| Some(Token::Symbol(s))),
         }
-    }
-}
-
-impl StrView {
-    fn from_str(str: &str) -> Self {
-        Self {
-            data: str.as_ptr(),
-            len: str.as_bytes().len(),
-        }
-    }
-}
-
-impl Deref for StrView {
-    type Target = str;
-
-    fn deref(&self) -> &Self::Target {
-        unsafe { core::str::from_utf8_unchecked(core::slice::from_raw_parts(self.data, self.len)) }
-    }
-}
-
-impl fmt::Debug for StrView {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self)
-    }
-}
-
-impl PartialEq for StrView {
-    fn eq(&self, other: &Self) -> bool {
-        self.deref() == other.deref()
-    }
-}
-
-impl PartialEq<str> for StrView {
-    fn eq(&self, other: &str) -> bool {
-        self == other
     }
 }
 
