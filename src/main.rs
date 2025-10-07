@@ -1,4 +1,6 @@
-use tyson::{Arena, Array, List, MemoryBlock, make, strmake};
+use std::marker::PhantomData;
+
+use tyson::{Arena, Array, Box as ArenaBox, List, MemoryBlock, Node, make, strmake};
 
 mod parser;
 
@@ -8,9 +10,21 @@ fn megabytes(n: usize) -> usize {
     1024 * 1024 * n
 }
 
-const CODE: &str = "(print 1 3.14159 \"hello, world\")\n (+ (* 2 2) (/ 10 5)";
-const JSON: &str = "{ \"type\": \"object\" }";
-const RUBY_OBJ: &str = "{ \"type\"=> \"object\" }";
+const CODE: &str = "
+(defpackage :ini-parser
+  (:use :common-lisp :anaphora)
+  (:export :read-config-from-file))
+(in-package :ini-parser)
+
+(defparameter +empty-line+ (format nil \"~%\"))
+
+(defmacro defmatcher (name regexp &rest fields)
+  (let ((result-expr (loop for i in fields collect `(aref data ,i))))
+    `(defun ,name (string)
+         (let ((scaner (ppcre:create-scanner ,regexp)))
+           (multiple-value-bind (matched data) (ppcre:scan-to-strings scaner string)
+             (if matched (list ,@result-expr)))))))
+";
 
 #[derive(Debug, Clone, Copy)]
 enum Instance<'arena> {
@@ -18,7 +32,7 @@ enum Instance<'arena> {
     Double(f64),
     String(&'arena str),
     Symbol(&'arena str),
-    List(Array<Instance<'arena>>),
+    List(ArenaBox<Node<Instance<'arena>>>),
 }
 
 fn parse_list<'arena>(
@@ -34,9 +48,7 @@ fn parse_list<'arena>(
         return Err("The first token must be an opening parentheses");
     }
 
-    let mut list = make!(arena, Instance, 8)
-        .map(Array::new)
-        .expect("Unable to allocate list.");
+    let mut list: List<'arena, Instance> = List::new(arena);
 
     while !tokens.is_empty() {
         match tokens.pop() {
@@ -45,39 +57,70 @@ fn parse_list<'arena>(
             }
             Some(token) => match token {
                 Token::Integer(i) => {
-                    list.push(&Instance::Integer(*i));
+                    list.push_back(&Instance::Integer(*i));
                 }
                 Token::Float(f) => {
-                    list.push(&Instance::Double(*f));
+                    list.push_back(&Instance::Double(*f));
                 }
                 Token::String(s) => {
                     let s = strmake!(arena, "{}", s).expect("No memory to allocate string");
-                    list.push(&Instance::String(s));
+                    list.push_back(&Instance::String(s));
+                    //println!("{:?}", list);
                 }
                 Token::Symbol(s) => {
                     let s = strmake!(arena, "{}", s).expect("No memory to allocate symbol");
-                    list.push(&Instance::Symbol(s));
+                    list.push_back(&Instance::Symbol(s));
                 }
                 Token::LParen | Token::LBrace | Token::LBracket => {
                     tokens.push(&Token::LParen);
                     let sub_list = parse_list(arena, tokens)?;
-                    list.push(&sub_list);
+                    list.push_back(&sub_list);
                 }
                 Token::RParen | Token::RBrace | Token::RBracket => {
-                    return Ok(Instance::List(list));
+                    return make!(arena, Node<Instance>)
+                        .map(ArenaBox::new)
+                        .map(|mut b| {
+                            *b = list.to_node().unwrap();
+                            Instance::List(b)
+                        })
+                        .ok_or("Failed to close list");
                 }
             },
         }
     }
 
-    Ok(Instance::List(list))
+    return make!(arena, Node<Instance>)
+        .map(ArenaBox::new)
+        .map(|mut b| {
+            *b = list.to_node().unwrap();
+            Instance::List(b)
+        })
+        .ok_or("Failed to close list");
+}
+
+fn print_list(root: &Node<Instance>, depth: usize) {
+    for i in root.iter() {
+        match i {
+            Instance::List(l) => {
+                print_list(l, depth + 1);
+            }
+            _ => {
+                if depth > 1 {
+                    for _ in 1..depth {
+                        print!("  ");
+                    }
+                }
+                println!("{:?}", i);
+            }
+        }
+    }
 }
 
 fn main() {
     let block = MemoryBlock::with_capacity(megabytes(32));
     let arena = block.arena(megabytes(16)).unwrap();
 
-    for text in &[CODE, JSON, RUBY_OBJ] {
+    for text in &[CODE] {
         let token_count = Tokenizer::new(text).into_iter().count();
         let mut tokens = make!(arena, Token, token_count)
             .map(Array::new)
@@ -86,17 +129,16 @@ fn main() {
         for token in Tokenizer::new(text) {
             tokens.push(&token);
         }
-
         tokens.reverse();
 
         let mut statements = List::new(&arena);
 
         while !tokens.is_empty() {
-            statements.push_back(&parse_list(&arena, &mut tokens));
+            statements.push_back(&parse_list(&arena, &mut tokens).unwrap());
         }
 
-        for stmt in statements.iter() {
-            println!("{:?}", stmt);
-        }
+        print_list(&statements.to_node().unwrap(), 0);
     }
+
+    println!("{:?}", arena);
 }

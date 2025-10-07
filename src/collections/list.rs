@@ -1,5 +1,5 @@
 use crate::{Arena, make};
-use core::ptr::NonNull;
+use core::{fmt::Debug, ptr::NonNull};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Node<T> {
@@ -7,7 +7,7 @@ pub struct Node<T> {
     pub value: T,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct List<'a, T> {
     arena: &'a Arena<'a>,
     head: Option<NonNull<Node<T>>>,
@@ -25,12 +25,13 @@ impl<T> Node<T> {
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &T> {
-        let mut current = Some(self);
+        let mut current = Some(NonNull::from_ref(self));
 
         core::iter::from_fn(move || match current {
             None => None,
-            Some(node) => {
-                current = Some(unsafe { node.next?.as_ref() });
+            Some(ptr) => {
+                let node = unsafe { ptr.as_ref() };
+                current = node.next;
                 Some(&node.value)
             }
         })
@@ -210,5 +211,14 @@ impl<'a, T> List<'a, T> {
         T: Copy,
     {
         Node::from_list(self)
+    }
+}
+
+impl<'a, T> Debug for List<'a, T>
+where
+    T: Debug,
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_list().entries(self.iter()).finish()
     }
 }

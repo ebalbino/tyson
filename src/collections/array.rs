@@ -1,7 +1,8 @@
 use core::convert::AsRef;
+use core::fmt::Debug;
 use core::ops::{Deref, DerefMut};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct Array<T> {
     buffer: *mut T,
     capacity: usize,
@@ -148,5 +149,14 @@ impl<T> DerefMut for Array<T> {
 impl<T> AsRef<[T]> for Array<T> {
     fn as_ref(&self) -> &[T] {
         self.deref()
+    }
+}
+
+impl<T> Debug for Array<T>
+where
+    T: Debug,
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_list().entries(self.iter()).finish()
     }
 }
