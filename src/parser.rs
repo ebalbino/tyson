@@ -1,7 +1,5 @@
-use std::fmt;
-use std::ops::Deref;
+use crate::{Arena, Box as ArenaBox, List, Node, make, strmake};
 use std::str::CharIndices;
-use tyson::List;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Token<'code> {
@@ -11,13 +9,28 @@ pub enum Token<'code> {
     RBracket,
     LBrace,
     RBrace,
-    Integer(i64),
-    Float(f64),
+    True,
+    False,
+    Nil,
+    Integer(&'code str),
+    Float(&'code str),
     String(&'code str),
     Symbol(&'code str),
 }
 
-pub struct Tokenizer<'code> {
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Value<'arena> {
+    Void,
+    True,
+    False,
+    Integer(i64),
+    Double(f64),
+    String(&'arena str),
+    Symbol(&'arena str),
+    List(ArenaBox<Node<Value<'arena>>>),
+}
+
+struct Tokenizer<'code> {
     code: &'code str,
     char_indices: CharIndices<'code>,
     current: Option<(usize, char)>,
@@ -146,16 +159,96 @@ impl<'code> Iterator for Tokenizer<'code> {
             (_, c) if c.is_numeric() => {
                 let val = self.read_number()?;
                 if val.contains('.') {
-                    Some(Token::Float(val.parse().ok()?))
+                    Some(Token::Float(val))
                 } else {
-                    Some(Token::Integer(val.parse().ok()?))
+                    Some(Token::Integer(val))
                 }
             }
-            (_, _c) => self.read_symbol().and_then(|s| Some(Token::Symbol(s))),
+            (_, _c) => self.read_symbol().and_then(|s| match s {
+                "#f" | "false" => Some(Token::False),
+                "#t" | "true" => Some(Token::True),
+                "nil" => Some(Token::Nil),
+                _ => Some(Token::Symbol(s)),
+            }),
         }
     }
 }
 
 fn is_surrounding_punctuation(c: char) -> bool {
     c == '(' || c == ')' || c == '[' || c == ']' || c == '{' || c == '}'
+}
+
+pub fn tokenize<'code>(code: &'code str) -> impl Iterator<Item = Token<'code>> {
+    Tokenizer::new(code).into_iter()
+}
+
+fn parse_list<'arena>(
+    arena: &'arena Arena,
+    tokens: &mut List<Token>,
+) -> Result<Value<'arena>, &'static str> {
+    let mut list: List<'arena, Value> = List::new(arena);
+
+    while !tokens.is_empty() {
+        match tokens.pop_front() {
+            None => {
+                return Err("Not enough tokens");
+            }
+            Some(token) => match token {
+                Token::Integer(i) => {
+                    list.push_back(&Value::Integer(i.parse().unwrap()));
+                }
+                Token::Float(f) => {
+                    list.push_back(&Value::Double(f.parse().unwrap()));
+                }
+                Token::Nil => {
+                    list.push_back(&Value::Void);
+                }
+                Token::True => {
+                    list.push_back(&Value::True);
+                }
+                Token::False => {
+                    list.push_back(&Value::False);
+                }
+                Token::String(s) => {
+                    let s = strmake!(arena, "{}", s).expect("No memory to allocate string");
+                    list.push_back(&Value::String(s));
+                }
+                Token::Symbol(s) => {
+                    let s = strmake!(arena, "{}", s).expect("No memory to allocate symbol");
+                    list.push_back(&Value::Symbol(s));
+                }
+                Token::LParen | Token::LBrace | Token::LBracket => {
+                    let sub_list = parse_list(arena, tokens)?;
+                    list.push_back(&sub_list);
+                }
+                Token::RParen | Token::RBrace | Token::RBracket => {
+                    return make!(arena, Node<Value>)
+                        .map(ArenaBox::new)
+                        .map(|mut b| {
+                            *b = list.to_node().unwrap();
+                            Value::List(b)
+                        })
+                        .ok_or("Failed to close list");
+                }
+            },
+        }
+    }
+
+    return make!(arena, Node<Value>)
+        .map(ArenaBox::new)
+        .map(|mut b| {
+            *b = list.to_node().unwrap();
+            Value::List(b)
+        })
+        .ok_or("Failed to close list");
+}
+
+pub fn parse<'arena>(arena: &'arena Arena, code: &str) -> Result<Value<'arena>, &'static str> {
+    let mut tokens = List::new(&arena);
+
+    for token in tokenize(code) {
+        tokens.push_back(&token);
+    }
+
+    parse_list(arena, &mut tokens)
 }

@@ -121,12 +121,12 @@ impl<T> Array<T> {
         false
     }
 
-    pub fn iter(&self) -> core::slice::Iter<T> {
+    pub fn iter<'a>(&'a self) -> core::slice::Iter<'a, T> {
         let len = self.len;
         self[..len].iter()
     }
 
-    pub fn iter_mut(&mut self) -> core::slice::IterMut<T> {
+    pub fn iter_mut<'a>(&'a mut self) -> core::slice::IterMut<'a, T> {
         let len = self.len;
         self[..len].iter_mut()
     }

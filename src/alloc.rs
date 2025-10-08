@@ -61,7 +61,7 @@ impl MemoryBlock {
         self.capacity
     }
 
-    pub fn arena(&self, size: usize) -> Option<Arena> {
+    pub fn arena<'a>(&self, size: usize) -> Option<Arena<'a>> {
         let current = self.len();
         let end = current + size;
 

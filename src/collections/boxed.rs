@@ -38,3 +38,12 @@ where
         Debug::fmt(&**self, f)
     }
 }
+
+impl<T> PartialEq for Box<T>
+where
+    T: PartialEq,
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.deref() == other.deref()
+    }
+}

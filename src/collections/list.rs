@@ -1,7 +1,7 @@
 use crate::{Arena, make};
 use core::{fmt::Debug, ptr::NonNull};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Node<T> {
     pub next: Option<NonNull<Node<T>>>,
     pub value: T,
