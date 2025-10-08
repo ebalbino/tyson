@@ -3,12 +3,11 @@ use crate::parser::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::string::String;
 
 #[derive(Debug, PartialEq, Default)]
 pub struct Env<'arena> {
     parent: Option<Rc<RefCell<Env<'arena>>>>,
-    vars: HashMap<String, Value<'arena>>,
+    vars: HashMap<&'arena str, Value<'arena>>,
 }
 
 impl<'arena> Env<'arena> {
@@ -42,7 +41,7 @@ impl<'arena> Env<'arena> {
         }
     }
 
-    pub fn set(&mut self, name: &str, val: Value<'arena>) {
-        self.vars.insert(name.to_string(), val);
+    pub fn set(&mut self, name: &'arena str, val: Value<'arena>) {
+        self.vars.insert(name, val);
     }
 }

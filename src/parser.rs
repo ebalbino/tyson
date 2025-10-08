@@ -27,7 +27,7 @@ pub enum Value<'arena> {
     Double(f64),
     String(&'arena str),
     Symbol(&'arena str),
-    List(ArenaBox<Node<Value<'arena>>>),
+    List(ArenaBox<Node<Value<'arena>>>, usize),
 }
 
 struct Tokenizer<'code> {
@@ -225,8 +225,9 @@ fn parse_list<'arena>(
                     return make!(arena, Node<Value>)
                         .map(ArenaBox::new)
                         .map(|mut b| {
+                            let count = list.len();
                             *b = list.to_node().unwrap();
-                            Value::List(b)
+                            Value::List(b, count)
                         })
                         .ok_or("Failed to close list");
                 }
@@ -237,8 +238,9 @@ fn parse_list<'arena>(
     return make!(arena, Node<Value>)
         .map(ArenaBox::new)
         .map(|mut b| {
+            let count = list.len();
             *b = list.to_node().unwrap();
-            Value::List(b)
+            Value::List(b, count)
         })
         .ok_or("Failed to close list");
 }

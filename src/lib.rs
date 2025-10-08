@@ -5,6 +5,7 @@
 mod alloc;
 mod collections;
 pub mod env;
+pub mod eval;
 pub mod parser;
 
 pub use alloc::*;

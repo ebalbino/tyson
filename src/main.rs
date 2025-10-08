@@ -1,3 +1,4 @@
+use tyson::eval::evaluate;
 use tyson::parser::{Value, parse};
 use tyson::{MemoryBlock, Node};
 
@@ -6,13 +7,31 @@ fn megabytes(n: usize) -> usize {
 }
 
 const CODE: &str = "
-(defpackage :ini-parser
-  (:use :common-lisp :anaphora)
-  (:export :read-config-from-file))
+(begin
+    (define (welcome)
+        (displayln \"Welcome to the REPL!\")
+        (displayln \"Use Ctrl+D to exit!\")
+        (newline))
 
-(in-package :ini-parser)
+    (define (tle-eval expr)
+        (eval expr (top-level-environment)))
 
-(defparameter +empty-line+ (format nil \"~%\"))
+    (define (goodbye)
+        (newline)
+        (displayln \"Quitting!\"))
+
+    (define (repl)
+        (display \">> \")
+        (let ((expr (read)))
+            (if (not (eof-object? expr))
+                (let ((result (tle-eval expr)))
+                     (if (not (void? result))
+                             (writeln result))
+                     (repl)))))
+
+    (welcome)
+    (repl)
+    (goodbye))
 ";
 
 fn print<'arena>(root: &Node<Value>, depth: usize) {
@@ -32,7 +51,7 @@ fn print<'arena>(root: &Node<Value>, depth: usize) {
         }
 
         match stmt {
-            Value::List(list) => {
+            Value::List(list, _len) => {
                 if depth != 0 {
                     print!("\n");
                 }
@@ -63,18 +82,16 @@ fn print<'arena>(root: &Node<Value>, depth: usize) {
         }
 
         if depth == 0 {
-            println!();
+            print!("\n");
         }
     }
 }
 
-fn evaluate<'arena>(root: &Node<Value>, depth: usize) {}
-
-fn visit<'arena, F>(program: Value<'arena>, mut emit: F)
+fn visit<'arena, F>(program: &Value<'arena>, mut emit: F)
 where
     F: FnMut(&Node<Value>, usize),
 {
-    if let Value::List(root) = program {
+    if let Value::List(root, _len) = program {
         emit(&root, 0);
     } else {
         panic!("Invalid program");
@@ -87,6 +104,7 @@ fn main() {
 
     for text in &[CODE] {
         let program = parse(&arena, text).expect("Unable to parse program.");
-        visit(program, print);
+        //visit(&program, print);
+        visit(&program, evaluate);
     }
 }
