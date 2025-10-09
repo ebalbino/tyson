@@ -1,9 +1,5 @@
 use crate::Node;
-use crate::env::*;
 use crate::parser::*;
-use crate::{Arena, Array, make};
-use std::cell::RefCell;
-use std::rc::Rc;
 
 pub fn evaluate<'arena>(node: &Node<Value>, depth: usize) {
     for (i, atom) in node.iter().enumerate() {
