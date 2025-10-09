@@ -5,5 +5,4 @@ edition = "2024"
 
 [dependencies]
 fxhash = "0.2.1"
-indextree = "4.7.4"
 libc = "0.2.176"
