@@ -1,6 +1,6 @@
 use tyson::eval::evaluate;
 use tyson::parser::{Value, parse};
-use tyson::{MemoryBlock, Node};
+use tyson::{Arena, MemoryBlock, Node};
 
 fn megabytes(n: usize) -> usize {
     1024 * 1024 * n
@@ -87,14 +87,12 @@ fn print<'arena>(root: &Node<Value>, depth: usize) {
     }
 }
 
-fn visit<'arena, F>(program: &Value<'arena>, mut emit: F)
+fn walk<'arena, F, T>(ast: &Value<'arena>, mut visit: F)
 where
-    F: FnMut(&Node<Value>, usize),
+    F: FnMut(&Node<Value>, usize) -> T,
 {
-    if let Value::List(root, _len) = program {
-        emit(&root, 0);
-    } else {
-        panic!("Invalid program");
+    if let Value::List(node, _len) = ast {
+        visit(&node, 0);
     }
 }
 
@@ -105,6 +103,6 @@ fn main() {
     for text in &[CODE] {
         let program = parse(&arena, text).expect("Unable to parse program.");
         //visit(&program, print);
-        visit(&program, evaluate);
+        walk(&program, evaluate);
     }
 }
