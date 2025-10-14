@@ -7,6 +7,9 @@ mod collections;
 pub mod env;
 pub mod eval;
 pub mod parser;
+pub mod print;
+mod tokenizer;
+pub mod value;
 
 pub use alloc::*;
 pub use collections::*;

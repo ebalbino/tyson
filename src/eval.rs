@@ -1,75 +1,56 @@
-use crate::Node;
-use crate::parser::*;
+use crate::env::Env;
+use crate::value::{ASTNode, evaluate};
+use crate::{Arena, Array, Box as ArenaBox, List, Node, make, strmake};
 
-pub fn evaluate<'arena>(node: &Node<Value>, depth: usize) {
-    for (i, atom) in node.iter().enumerate() {
-        if i != 0 {
-            print!("\n");
-        }
+#[derive(Clone, Copy, Debug)]
+pub enum Atom<'arena> {
+    True,
+    False,
+    Void,
+    Int(i64),
+    Number(f64),
+    String(&'arena str),
+    Ref(&'arena str, usize),
+    Function(Array<Atom<'arena>>),
+    Unknown,
+}
 
-        let indent = || {
-            if depth > 0 {
-                for _ in 0..depth {
-                    print!("  ");
-                }
-            }
-        };
+pub fn resolver<'arena>(
+    arena: &'arena Arena<'arena>,
+    node: &'arena ASTNode<'arena>,
+    depth: usize,
+    list_index: usize,
+    list_len: usize,
+) -> Atom<'arena> {
+    match node {
+        ASTNode::List(head, len) => {
+            let count = *len;
+            let mut atoms = make!(arena, Atom, count).map(Array::new).unwrap();
 
-        match atom {
-            Value::List(head, len) => {
-                let val = head.value;
-
-                match val {
-                    Value::List(inner, _len) => {
-                        evaluate(&inner, depth);
-                    }
-                    Value::Symbol(s) => {
-                        indent();
-                        print!("{}/{}", s, len - 1);
-                        match head.next {
-                            None => {}
-                            Some(ptr) => {
-                                print!("\n");
-                                let node = unsafe { ptr.as_ref() };
-                                evaluate(node, depth + 1);
-                            }
+            for (i, node) in head.iter().enumerate() {
+                if i == 0 {
+                    match node {
+                        ASTNode::Symbol(_) => {} // NOOP
+                        ASTNode::List(_, n) => {
+                            return resolver(arena, node, depth + 1, 0, *n);
+                        }
+                        _ => {
+                            panic!("Head of list must be symbol or list");
                         }
                     }
-                    _ => panic!("Invalid call: {:?}", val),
                 }
-            }
-            Value::Symbol(s) => {
-                indent();
-                print!("{}", s);
-            }
-            Value::Void => {
-                indent();
-                print!("nil");
-            }
-            Value::True => {
-                indent();
-                print!("true");
-            }
-            Value::False => {
-                indent();
-                print!("false");
-            }
-            Value::Integer(n) => {
-                indent();
-                print!("int/{}", n);
-            }
-            Value::Double(n) => {
-                indent();
-                print!("double/{}", n);
-            }
-            Value::String(s) => {
-                indent();
-                print!("string/\"{}\"", s);
-            }
-        }
 
-        if depth == 0 {
-            print!("\n");
+                atoms.push(&resolver(arena, node, depth + 1, i, *len));
+            }
+
+            Atom::Function(atoms)
         }
+        ASTNode::Symbol(s) => Atom::Ref(s, list_len - 1),
+        ASTNode::Void => Atom::Void,
+        ASTNode::True => Atom::True,
+        ASTNode::False => Atom::False,
+        ASTNode::Integer(n) => Atom::Int(*n),
+        ASTNode::Double(n) => Atom::Number(*n),
+        ASTNode::String(s) => Atom::String(s),
     }
 }

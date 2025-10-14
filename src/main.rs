@@ -1,100 +1,65 @@
-use tyson::eval::evaluate;
-use tyson::parser::{Value, parse};
-use tyson::{Arena, MemoryBlock, Node};
+use tyson::MemoryBlock;
+use tyson::eval::{Atom, resolver};
+use tyson::parser::parse;
+use tyson::print::print;
+use tyson::value::{ASTNode, evaluate, traverse};
 
 fn megabytes(n: usize) -> usize {
     1024 * 1024 * n
 }
 
 const CODE: &str = "
-(begin
-    (define (welcome)
-        (displayln \"Welcome to the REPL!\")
-        (displayln \"Use Ctrl+D to exit!\")
-        (newline))
+(define (pop)
+  (lambda (stack)
+    (let ((element (car stack))
+          (new-stack (cdr stack)))
+      (list element new-stack))))
 
-    (define (tle-eval expr)
-        (eval expr (top-level-environment)))
+(define (stack-of result)
+  (cadr result))
 
-    (define (goodbye)
-        (newline)
-        (displayln \"Quitting!\"))
+(define (value-of result)
+  (car result))
 
-    (define (repl)
-        (display \">> \")
-        (let ((expr (read)))
-            (if (not (eof-object? expr))
-                (let ((result (tle-eval expr)))
-                     (if (not (void? result))
-                             (writeln result))
-                     (repl)))))
+(define (>>= stack-action continuation)
+  (lambda (stack)
+    (let ((result (stack-action stack)))
+      ((continuation (value-of result)) (stack-of result)))))
 
-    (welcome)
-    (repl)
-    (goodbye))
+(define (return value)
+  (lambda (stack)
+    (list value stack)))
+
+(define (run-stack computation stack)
+  (computation stack))
+
+(define (eval-stack computation stack)
+  (value-of (computation stack)))
+
+(define (exec-stack computation stack)
+  (stack-of (computation stack)))
+
+(define (computation-1) (>>= (push 4) (lambda (_)
+                      (>>= (push 5) (lambda (_)
+                      (>>= (pop)    (lambda (a)
+                      (>>= (pop)    (lambda (b)
+                      (return (list a b)))))))))))
+
+(define (computation-2) (>>= (push 2) (lambda (_)
+                      (>>= (push 3) (lambda (_)
+                      (>>= (pop)    (lambda (a)
+                      (>>= (pop)    (lambda (b)
+                      (return (list a b)))))))))))
+
+(define (main)
+  (let ((initial-stack '())
+        (composed (>>= computation-1 (lambda (a)
+                  (>>= computation-2 (lambda (b)
+                  (return (list a b))))))))
+    (begin
+      (display \"Result: \")
+      (display (eval-stack composed initial-stack)))))
 ";
-
-fn print<'arena>(root: &Node<Value>, depth: usize) {
-    if depth > 1 {
-        for _ in 1..depth {
-            print!("  ");
-        }
-    }
-
-    if depth != 0 {
-        print!("(");
-    }
-
-    for (i, stmt) in root.iter().enumerate() {
-        if i > 0 && depth != 0 {
-            print!(" ");
-        }
-
-        match stmt {
-            Value::List(list, _len) => {
-                if depth != 0 {
-                    print!("\n");
-                }
-                print(list, depth + 1);
-                print!(")");
-            }
-            Value::Integer(i) => {
-                print!("{}", i);
-            }
-            Value::Double(d) => {
-                print!("{}", d);
-            }
-            Value::False => {
-                print!("false");
-            }
-            Value::True => {
-                print!("true");
-            }
-            Value::Void => {
-                print!("void");
-            }
-            Value::String(s) => {
-                print!("{}", s);
-            }
-            Value::Symbol(s) => {
-                print!("{}", s);
-            }
-        }
-
-        if depth == 0 {
-            print!("\n");
-        }
-    }
-}
-
-fn walk<'arena, F, T>(ast: &Value<'arena>, mut visit: F)
-where
-    F: FnMut(&Node<Value>, usize) -> T,
-{
-    if let Value::List(node, _len) = ast {
-        visit(&node, 0);
-    }
-}
 
 fn main() {
     let block = MemoryBlock::with_capacity(megabytes(32));
@@ -102,7 +67,25 @@ fn main() {
 
     for text in &[CODE] {
         let program = parse(&arena, text).expect("Unable to parse program.");
-        //visit(&program, print);
-        walk(&program, evaluate);
+        println!("Memory use after parsing: {:?}", arena);
+        traverse(&program, print);
+
+        let results = evaluate(&arena, &program, resolver);
+        println!("Memory use after evaluation: {:?}", arena);
+
+        for result in results.iter() {
+            match result {
+                Atom::Function(atoms) => {
+                    for atom in atoms.iter() {
+                        println!("{:?}", atom);
+                    }
+                }
+                _ => {
+                    println!("{:?}", result);
+                }
+            }
+        }
     }
+
+    println!("{:?}", arena);
 }
