@@ -2,7 +2,7 @@ use crate::Node;
 use crate::value::ASTNode;
 
 pub fn print<'arena>(root: &Node<ASTNode>, depth: usize, list_index: usize, list_len: usize) {
-    if depth > 0 {
+    if depth > 0 || list_index != 0 {
         for _ in 0..depth {
             print!("  ");
         }
@@ -11,15 +11,13 @@ pub fn print<'arena>(root: &Node<ASTNode>, depth: usize, list_index: usize, list
     print!("(");
 
     for (i, stmt) in root.iter().enumerate() {
-        if i > 0 && depth != 0 {
+        if i > 0 {
             print!(" ");
         }
 
         match stmt {
             ASTNode::List(list, len) => {
-                if depth != 0 {
-                    print!("\n");
-                }
+                print!("\n");
                 print(list, depth + 1, 0, *len);
                 print!(")");
             }
@@ -36,7 +34,7 @@ pub fn print<'arena>(root: &Node<ASTNode>, depth: usize, list_index: usize, list
                 print!("true");
             }
             ASTNode::Void => {
-                print!("void");
+                print!("nil");
             }
             ASTNode::String(s) => {
                 print!("{}", s);
@@ -47,7 +45,9 @@ pub fn print<'arena>(root: &Node<ASTNode>, depth: usize, list_index: usize, list
         }
 
         if depth == 0 {
-            print!("\n");
+            if i == list_len - 1 {
+                print!(")\n");
+            }
         }
     }
 }

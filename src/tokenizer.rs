@@ -100,7 +100,7 @@ impl<'code> Tokenizer<'code> {
                 start = Some(i);
             }
 
-            if c.is_whitespace() || is_surrounding_punctuation(c) || c == '\'' {
+            if c.is_whitespace() || is_surrounding_punctuation(c) {
                 end = Some(i);
                 break;
             }
@@ -142,7 +142,7 @@ impl<'code> Iterator for Tokenizer<'code> {
                 self.advance();
                 Some(Token::RBrace)
             }
-            (_, '"') | (_, '\'') => self.read_string().and_then(|s| Some(Token::String(s))),
+            (_, '"') => self.read_string().and_then(|s| Some(Token::String(s))),
             (_, c) if c.is_numeric() => {
                 let val = self.read_number()?;
                 if val.contains('.') {
