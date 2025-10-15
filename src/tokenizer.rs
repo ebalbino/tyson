@@ -11,6 +11,7 @@ pub enum Token<'code> {
     True,
     False,
     Nil,
+    Quote,
     Integer(&'code str),
     Float(&'code str),
     String(&'code str),
@@ -141,6 +142,10 @@ impl<'code> Iterator for Tokenizer<'code> {
             (_, '}') => {
                 self.advance();
                 Some(Token::RBrace)
+            }
+            (_, '\'') => {
+                self.advance();
+                Some(Token::Quote)
             }
             (_, '"') => self.read_string().and_then(|s| Some(Token::String(s))),
             (_, c) if c.is_numeric() => {

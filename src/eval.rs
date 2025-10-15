@@ -1,5 +1,5 @@
 use crate::value::ASTNode;
-use crate::{Arena, Array, make};
+use crate::{Arena, Array, Node, make};
 
 #[derive(Clone, Copy, Debug)]
 pub enum Atom<'arena> {
@@ -36,67 +36,78 @@ pub enum Atom<'arena> {
         symbol: &'arena str,
         arity: usize,
     },
+    Identifier {
+        depth: usize,
+        position: usize,
+        symbol: &'arena str,
+    },
     Expression {
+        depth: usize,
+        position: usize,
+        body: Array<Atom<'arena>>,
+    },
+    Code {
         depth: usize,
         position: usize,
         body: Array<Atom<'arena>>,
     },
 }
 
-pub fn resolver<'arena>(
+pub fn resolve<'arena>(
     arena: &'arena Arena<'arena>,
-    node: &'arena ASTNode<'arena>,
-    depth: usize,
-    position: usize,
+    root: &'arena Node<ASTNode<'arena>>,
     list_len: usize,
-) -> Atom<'arena> {
-    match node {
-        ASTNode::List(head, len) => {
-            let count = *len;
-            let mut body = make!(arena, Atom, count).map(Array::new).unwrap();
-
-            for (i, node) in head.iter().enumerate() {
-                if i == 0 {
-                    match node {
-                        ASTNode::List(_, n) => {
-                            return resolver(arena, node, depth + 1, 0, *n);
+    depth: usize,
+) -> Option<Array<Atom<'arena>>> {
+    make!(arena, Atom, list_len)
+        .map(Array::new)
+        .map(|mut exprs| {
+            for (position, node) in root.iter().enumerate() {
+                exprs.push(&match node {
+                    ASTNode::List(list, len) => Atom::Expression {
+                        body: resolve(arena, list, *len, depth + 1).unwrap(),
+                        depth,
+                        position,
+                    },
+                    ASTNode::Quoted(list, len) => Atom::Code {
+                        body: resolve(arena, list, *len, depth + 1).unwrap(),
+                        depth,
+                        position,
+                    },
+                    ASTNode::Symbol(symbol) if position == 0 => {
+                        let arity = list_len - 1;
+                        Atom::Call {
+                            symbol,
+                            arity,
+                            depth,
+                            position,
                         }
-                        _ => {}
                     }
-                }
-
-                body.push(&resolver(arena, node, depth + 1, i, *len));
+                    ASTNode::Symbol(symbol) => Atom::Identifier {
+                        depth,
+                        position,
+                        symbol,
+                    },
+                    ASTNode::Void => Atom::Void { depth, position },
+                    ASTNode::True => Atom::True { depth, position },
+                    ASTNode::False => Atom::False { depth, position },
+                    ASTNode::Integer(i) => Atom::Int {
+                        inner: *i,
+                        depth,
+                        position,
+                    },
+                    ASTNode::Double(f) => Atom::Number {
+                        inner: *f,
+                        depth,
+                        position,
+                    },
+                    ASTNode::String(s) => Atom::String {
+                        inner: s,
+                        depth,
+                        position,
+                    },
+                });
             }
-
-            Atom::Expression {
-                body,
-                depth,
-                position,
-            }
-        }
-        ASTNode::Symbol(s) => Atom::Call {
-            symbol: s,
-            arity: list_len - 1,
-            depth,
-            position,
-        },
-        ASTNode::Void => Atom::Void { depth, position },
-        ASTNode::True => Atom::True { depth, position },
-        ASTNode::False => Atom::False { depth, position },
-        ASTNode::Integer(i) => Atom::Int {
-            inner: *i,
-            depth,
-            position,
-        },
-        ASTNode::Double(f) => Atom::Number {
-            inner: *f,
-            depth,
-            position,
-        },
-        ASTNode::String(s) => Atom::String {
-            inner: s,
-            depth,
-            position,
-        },
-    }
+            exprs
+        })
 }

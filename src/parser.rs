@@ -12,7 +12,7 @@ pub fn parse<'arena>(
         tokens.push_back(&token);
     }
 
-    let tree = parse_list(arena, &mut tokens)?;
+    let tree = parse_list(arena, &mut tokens, false)?;
 
     if let ASTNode::List(head, _) = tree {
         return Ok(*head);
@@ -24,6 +24,7 @@ pub fn parse<'arena>(
 fn parse_list<'arena>(
     arena: &'arena Arena,
     tokens: &mut List<Token>,
+    quoted: bool,
 ) -> Result<ASTNode<'arena>, &'static str> {
     let mut list: List<'arena, ASTNode> = List::new(arena);
 
@@ -49,15 +50,24 @@ fn parse_list<'arena>(
                     list.push_back(&ASTNode::False);
                 }
                 Token::String(s) => {
-                    let s = strmake!(arena, "{}", s).expect("No memory to allocate string");
+                    let s = strmake!(arena, "{}", s).expect("No memory to allocate string.");
                     list.push_back(&ASTNode::String(s));
                 }
                 Token::Symbol(s) => {
-                    let s = strmake!(arena, "{}", s).expect("No memory to allocate symbol");
+                    let s = strmake!(arena, "{}", s).expect("No memory to allocate symbol.");
                     list.push_back(&ASTNode::Symbol(s));
                 }
+                Token::Quote => match tokens.pop_front().expect("You can't quote nothing.") {
+                    Token::LParen | Token::LBrace | Token::LBracket => {
+                        let sub_list = parse_list(arena, tokens, true)?;
+                        list.push_back(&sub_list);
+                    }
+                    _ => {
+                        panic!("");
+                    }
+                },
                 Token::LParen | Token::LBrace | Token::LBracket => {
-                    let sub_list = parse_list(arena, tokens)?;
+                    let sub_list = parse_list(arena, tokens, false)?;
                     list.push_back(&sub_list);
                 }
                 Token::RParen | Token::RBrace | Token::RBracket => {
@@ -66,7 +76,11 @@ fn parse_list<'arena>(
                         .map(|mut b| {
                             let count = list.len();
                             *b = list.to_node().unwrap();
-                            ASTNode::List(b, count)
+                            if quoted {
+                                ASTNode::Quoted(b, count)
+                            } else {
+                                ASTNode::List(b, count)
+                            }
                         })
                         .ok_or("Failed to close list");
                 }

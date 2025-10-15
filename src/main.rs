@@ -1,7 +1,6 @@
-use tyson::eval::resolver;
+use tyson::eval::resolve;
 use tyson::parser::parse;
 use tyson::print::print;
-use tyson::value::{evaluate, traverse};
 use tyson::{List, MemoryBlock};
 
 fn megabytes(n: usize) -> usize {
@@ -9,12 +8,18 @@ fn megabytes(n: usize) -> usize {
 }
 
 const CODE: &str = "
-(defun m 3)
-(defun n 3)
-(defun iota (m) (step m)) 
-(defun iter (m n lst)
-		(cond ((> n m) (reverse lst))
-			(t (iter m (+ n step) (cons n lst)))))
+(define (exp-of-ten x)
+  (expt 10 x))
+
+(define (foo x context)
+  (print (context x)))
+
+(define (bar list context)
+  (for-each
+   (lambda (listp) (foo listp context))
+   list))
+
+(bar '(1 2 3 4 5 6) exp-of-ten)
 ";
 
 fn main() {
@@ -27,14 +32,15 @@ fn main() {
         modules.push_back(&parse(&arena, text).unwrap());
     }
 
-    println!("Memory use after parsing: {:?}", arena);
+    println!("Memory use after parsing: {:#?}", arena);
 
     for module in modules.iter() {
-        traverse(&module, print);
-        expressions.push_back(&evaluate(&arena, &module, resolver));
+        let count = module.iter().count();
+        print(&module, count, 0, false);
+        expressions.push_back(&resolve(&arena, &module, count, 0));
     }
 
-    for expression in expressions.iter().enumerate() {
+    for expression in expressions.iter() {
         println!("{:#?}", expression);
     }
 
