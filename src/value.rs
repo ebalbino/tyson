@@ -1,5 +1,4 @@
-use crate::env::Env;
-use crate::{Arena, Array, Box as ArenaBox, List, Node, make};
+use crate::{Arena, Array, Box as ArenaBox, Node, make};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ASTNode<'arena> {
