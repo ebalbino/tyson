@@ -19,7 +19,7 @@ const CODE: &str = "
    (lambda (listp) (foo listp context))
    list))
 
-(bar '(1 2 3 4 5 6) exp-of-ten)
+(bar '(rand n 8) exp-of-ten)
 ";
 
 fn main() {
@@ -36,7 +36,8 @@ fn main() {
 
     for module in modules.iter() {
         let count = module.iter().count();
-        print(&module, count, 0, false);
+        //print(&module, count, 0, false);
+        println!("{:#?}", module);
         expressions.push_back(&resolve(&arena, &module, count, 0));
     }
 
