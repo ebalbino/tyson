@@ -160,3 +160,22 @@ where
         f.debug_list().entries(self.iter()).finish()
     }
 }
+
+impl<T> PartialEq<Array<T>> for Array<T>
+where
+    T: PartialEq,
+{
+    fn eq(&self, other: &Self) -> bool {
+        if self.len() != other.len() {
+            return false;
+        }
+
+        for (i, j) in self.iter().zip(other.iter()) {
+            if i != j {
+                return false;
+            }
+        }
+
+        true
+    }
+}
