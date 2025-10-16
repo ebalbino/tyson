@@ -75,6 +75,10 @@ fn parse_list<'arena>(
                         .map(ArenaBox::new)
                         .map(|mut b| {
                             let count = list.len();
+                            if count == 0 {
+                                return ASTNode::Void;
+                            }
+
                             *b = list.to_node().unwrap();
                             if quoted {
                                 ASTNode::Quoted(b, count)
@@ -84,6 +88,7 @@ fn parse_list<'arena>(
                         })
                         .ok_or("Failed to close list");
                 }
+                Token::Comment(_) => (), // NOTE: Comments aren't used in the AST for now.
             },
         }
     }

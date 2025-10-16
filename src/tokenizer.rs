@@ -16,6 +16,7 @@ pub enum Token<'code> {
     Float(&'code str),
     String(&'code str),
     Symbol(&'code str),
+    Comment(&'code str),
 }
 
 pub struct Tokenizer<'code> {
@@ -111,6 +112,26 @@ impl<'code> Tokenizer<'code> {
 
         Some(&self.code[start?..end?])
     }
+
+    fn read_comment(&mut self) -> Option<&'code str> {
+        let mut start = None;
+        let mut end = None;
+
+        while let Some((i, c)) = self.current {
+            if start == None {
+                start = Some(i);
+            }
+
+            if c == '\n' {
+                end = Some(i);
+                break;
+            }
+
+            self.advance();
+        }
+
+        Some(&self.code[start?..end?])
+    }
 }
 
 impl<'code> Iterator for Tokenizer<'code> {
@@ -145,7 +166,16 @@ impl<'code> Iterator for Tokenizer<'code> {
             }
             (_, '\'') => {
                 self.advance();
-                Some(Token::Quote)
+                Some(Token::RBrace)
+            }
+            (_, ';') => {
+                self.advance();
+                match self.current? {
+                    (_, ';') => self.read_comment().and_then(|s| Some(Token::Comment(s))),
+                    _ => {
+                        panic!("Malformed comment");
+                    }
+                }
             }
             (_, '"') => self.read_string().and_then(|s| Some(Token::String(s))),
             (_, c) if c.is_numeric() => {

@@ -8,18 +8,31 @@ fn megabytes(n: usize) -> usize {
 }
 
 const CODE: &str = "
-(define (exp-of-ten x)
-  (expt 10 x))
+(define (merge L M)
+	(if (null? L) M
+		(if (null? M) L
+			(if (< (car L) (car M))
+				(cons (car L) (merge (cdr L) M))
+				(cons (car M) (merge (cdr M) L))))))
 
-(define (foo x context)
-  (print (context x)))
+(define (odd L)
+	(if (null? L) '()
+		(if (null? (cdr L)) (list (car L))
+			(cons (car L) (odd (cddr L))))))
+(define (even L)
+	(if (null? L) '()
+		(if (null? (cdr L)) '()
+			(cons (cadr L) (even (cddr L))))))
 
-(define (bar list context)
-  (for-each
-   (lambda (listp) (foo listp context))
-   list))
+(define (split L)
+	(cons (odd L) (cons (even L) `())))
 
-(bar '(rand n 8) exp-of-ten)
+(define (mergesort L)
+	(if (null? L) L
+		(if (null? (cdr L)) L
+			(merge
+				(mergesort (car (split L)))
+				(mergesort (cadr (split L)))))))
 ";
 
 fn main() {
