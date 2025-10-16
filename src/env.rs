@@ -1,4 +1,4 @@
-use crate::value::ASTNode;
+use crate::parser::Atom;
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -7,7 +7,7 @@ use std::rc::Rc;
 #[derive(Debug, PartialEq, Default)]
 pub struct Env<'arena> {
     parent: Option<Rc<RefCell<Env<'arena>>>>,
-    vars: HashMap<&'arena str, ASTNode<'arena>>,
+    vars: HashMap<&'arena str, Atom<'arena>>,
 }
 
 impl<'arena> Env<'arena> {
@@ -16,12 +16,8 @@ impl<'arena> Env<'arena> {
     }
 
     pub fn update(&mut self, data: Rc<RefCell<Self>>) {
-        self.vars.extend(
-            data.borrow()
-                .vars
-                .iter()
-                .map(|(k, v)| (k.clone(), v.clone())),
-        );
+        self.vars
+            .extend(data.borrow().vars.iter().map(|(k, v)| (k, v)));
     }
 
     pub fn extend(parent: Rc<RefCell<Self>>) -> Self {
@@ -31,7 +27,7 @@ impl<'arena> Env<'arena> {
         }
     }
 
-    pub fn get(&self, name: &str) -> Option<ASTNode<'arena>> {
+    pub fn get(&self, name: &str) -> Option<Atom<'arena>> {
         match self.vars.get(name) {
             Some(value) => Some(value.clone()),
             None => self
@@ -41,7 +37,7 @@ impl<'arena> Env<'arena> {
         }
     }
 
-    pub fn set(&mut self, name: &'arena str, val: ASTNode<'arena>) {
+    pub fn set(&mut self, name: &'arena str, val: Atom<'arena>) {
         self.vars.insert(name, val);
     }
 }

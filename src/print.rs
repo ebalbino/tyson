@@ -1,7 +1,7 @@
 use crate::Node;
-use crate::value::ASTNode;
+use crate::parser::Lexeme;
 
-pub fn print<'arena>(root: &Node<ASTNode>, count: usize, depth: usize, quoted: bool) {
+pub fn print<'arena>(root: &Node<Lexeme>, count: usize, depth: usize, quoted: bool) {
     if depth > 0 {
         for _ in 0..depth {
             print!("  ");
@@ -28,35 +28,49 @@ pub fn print<'arena>(root: &Node<ASTNode>, count: usize, depth: usize, quoted: b
         }
 
         match atom {
-            ASTNode::List(list, len) => {
+            Lexeme::List(list, len) => {
                 print!("\n");
                 print(list, *len, depth + 1, false);
                 print!(")");
             }
-            ASTNode::Quoted(list, len) => {
+            Lexeme::Quoted(list, len) => {
                 print!("\n");
                 print(list, *len, depth + 1, true);
                 print!(")");
             }
-            ASTNode::Integer(i) => {
+            Lexeme::Integer(i) => {
                 print!("{}", i);
             }
-            ASTNode::Double(d) => {
+            Lexeme::Double(d) => {
                 print!("{}", d);
             }
-            ASTNode::False => {
-                print!("false");
+            Lexeme::False => {
+                print!("#f");
             }
-            ASTNode::True => {
-                print!("true");
+            Lexeme::True => {
+                print!("#t");
             }
-            ASTNode::Void => {
-                print!("nil");
+            Lexeme::Unit => {
+                if quoted {
+                    print!("'()");
+                } else {
+                    print!("()");
+                }
             }
-            ASTNode::String(s) => {
+            Lexeme::Null => {
+                print!("#nil");
+            }
+            Lexeme::String(s) => {
                 print!("{}", s);
             }
-            ASTNode::Symbol(s) => {
+            Lexeme::Symbol(s, quoted) => {
+                if *quoted {
+                    print!("'{}", s);
+                } else {
+                    print!("{}", s);
+                }
+            }
+            Lexeme::Operator(s) => {
                 print!("{}", s);
             }
         }

@@ -60,7 +60,7 @@ impl<'code> Tokenizer<'code> {
                 start = Some(i);
             }
 
-            if !c.is_numeric() && c != '.' {
+            if !c.is_numeric() && c != '.' && c != '-' {
                 end = Some(i);
                 break;
             }
@@ -166,7 +166,7 @@ impl<'code> Iterator for Tokenizer<'code> {
             }
             (_, '\'') => {
                 self.advance();
-                Some(Token::RBrace)
+                Some(Token::Quote)
             }
             (_, ';') => {
                 self.advance();
@@ -186,12 +186,33 @@ impl<'code> Iterator for Tokenizer<'code> {
                     Some(Token::Integer(val))
                 }
             }
-            (_, _c) => self.read_symbol().and_then(|s| match s {
-                "#f" | "false" => Some(Token::False),
-                "#t" | "true" => Some(Token::True),
-                "nil" => Some(Token::Nil),
-                _ => Some(Token::Symbol(s)),
-            }),
+            (_, c) => match c {
+                '-' => {
+                    if let Some((_, next_char)) = self.char_indices.clone().peekable().peek() {
+                        if next_char.is_numeric() {
+                            let val = self.read_number()?;
+                            if val.contains('.') {
+                                return Some(Token::Float(val));
+                            } else {
+                                return Some(Token::Integer(val));
+                            }
+                        }
+                    }
+
+                    self.read_symbol().and_then(|s| match s {
+                        "#f" | "false" => Some(Token::False),
+                        "#t" | "true" => Some(Token::True),
+                        "nil" => Some(Token::Nil),
+                        _ => Some(Token::Symbol(s)),
+                    })
+                }
+                _ => self.read_symbol().and_then(|s| match s {
+                    "#f" | "false" => Some(Token::False),
+                    "#t" | "true" => Some(Token::True),
+                    "nil" => Some(Token::Nil),
+                    _ => Some(Token::Symbol(s)),
+                }),
+            },
         }
     }
 }

@@ -1,5 +1,4 @@
-use tyson::eval::resolve;
-use tyson::parser::parse;
+use tyson::parser::{lexer, parse};
 use tyson::print::print;
 use tyson::{List, MemoryBlock};
 
@@ -8,31 +7,32 @@ fn megabytes(n: usize) -> usize {
 }
 
 const CODE: &str = "
-(define (merge L M)
-	(if (null? L) M
-		(if (null? M) L
-			(if (< (car L) (car M))
-				(cons (car L) (merge (cdr L) M))
-				(cons (car M) (merge (cdr M) L))))))
+(define (make-base-pythagoreans upper)
+  (define (py3 a b c)
+    (define (U a b c)
+      (list (+ (* a 1) (* b -2) (* c 2))
+            (+ (* a 2) (* b -1) (* c 2))
+            (+ (* a 2) (* b -2) (* c 3))))
+    (define (A a b c)
+      (list (+ (* a 1) (* b 2) (* c 2))
+            (+ (* a 2) (* b 1) (* c 2))
+            (+ (* a 2) (* b 2) (* c 3))))
+    (define (D a b c)
+      (list (+ (* a -1) (* b 2) (* c 2))
+            (+ (* a -2) (* b 1) (* c 2))
+            (+ (* a -2) (* b 2) (* c 3))))
+    (values (U a b c) (A a b c) (D a b c)))
 
-(define (odd L)
-	(if (null? L) '()
-		(if (null? (cdr L)) (list (car L))
-			(cons (car L) (odd (cddr L))))))
-(define (even L)
-	(if (null? L) '()
-		(if (null? (cdr L)) '()
-			(cons (cadr L) (even (cddr L))))))
-
-(define (split L)
-	(cons (odd L) (cons (even L) `())))
-
-(define (mergesort L)
-	(if (null? L) L
-		(if (null? (cdr L)) L
-			(merge
-				(mergesort (car (split L)))
-				(mergesort (cadr (split L)))))))
+  (let1 pythagoreans (make-hash-table 'equal?)
+    (let loop ((q '((3 4 5))))
+      (if (null? q) pythagoreans
+          (let1 tr (car q)
+            (if (every (cut <= <> upper) tr)
+                (begin
+                  (hash-table-put! pythagoreans tr #t)
+                  (receive (u a d) (apply py3 tr)
+                    (loop (cons* u a d (cdr q)))))
+                (loop (cdr q))))))))
 ";
 
 fn main() {
@@ -42,7 +42,7 @@ fn main() {
     let mut expressions = List::new(&arena);
 
     for text in &[CODE] {
-        modules.push_back(&parse(&arena, text).unwrap());
+        modules.push_back(&lexer(&arena, text).unwrap());
     }
 
     println!("Memory use after parsing: {:#?}", arena);
@@ -50,8 +50,7 @@ fn main() {
     for module in modules.iter() {
         let count = module.iter().count();
         //print(&module, count, 0, false);
-        println!("{:#?}", module);
-        expressions.push_back(&resolve(&arena, &module, count, 0));
+        expressions.push_back(&parse(&arena, &module, count, 0));
     }
 
     for expression in expressions.iter() {
