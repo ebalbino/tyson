@@ -12,6 +12,7 @@ pub enum Token<'code> {
     False,
     Nil,
     Quote,
+    Quasiquote,
     Integer(&'code str),
     Float(&'code str),
     String(&'code str),
@@ -167,6 +168,10 @@ impl<'code> Iterator for Tokenizer<'code> {
             (_, '\'') => {
                 self.advance();
                 Some(Token::Quote)
+            }
+            (_, '`') => {
+                self.advance();
+                Some(Token::Quasiquote)
             }
             (_, ';') => {
                 self.advance();

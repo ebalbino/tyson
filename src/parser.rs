@@ -128,6 +128,20 @@ fn lex_tokens<'arena>(
                         panic!("Unable to quote.");
                     }
                 },
+                Token::Quasiquote => {
+                    match tokens.pop_front().expect("You can't quasiquote nothing.") {
+                        Token::LParen | Token::LBrace | Token::LBracket => {
+                            let sub_list = lex_tokens(arena, tokens, true)?;
+                            list.push_back(&sub_list);
+                        }
+                        Token::Symbol(s) => {
+                            list.push_back(&Lexeme::Symbol(s, true));
+                        }
+                        _ => {
+                            panic!("Unable to quasiquote.");
+                        }
+                    }
+                }
                 Token::LParen | Token::LBrace | Token::LBracket => {
                     let sub_list = lex_tokens(arena, tokens, false)?;
                     list.push_back(&sub_list);
