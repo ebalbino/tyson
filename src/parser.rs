@@ -62,7 +62,7 @@ pub struct Expression<'arena> {
 pub fn lexer<'arena>(
     arena: &'arena Arena,
     code: &'arena str,
-) -> Result<Node<Lexeme<'arena>>, &'static str> {
+) -> Result<(Node<Lexeme<'arena>>, usize), &'static str> {
     let mut tokens = List::new(&arena);
 
     for token in tokenize(code) {
@@ -71,8 +71,8 @@ pub fn lexer<'arena>(
 
     let tree = lex_tokens(arena, &mut tokens, false)?;
 
-    if let Lexeme::List(head, _) = tree {
-        return Ok(*head);
+    if let Lexeme::List(head, len) = tree {
+        return Ok((*head, len));
     }
 
     Err("The program couldn't be parsed correctly.")
@@ -187,9 +187,9 @@ fn is_operator(s: &str) -> bool {
     }
 }
 
-pub fn parse<'arena>(
+pub fn parse_list<'arena>(
     arena: &'arena Arena<'arena>,
-    root: &'arena Node<Lexeme<'arena>>,
+    root: Node<Lexeme<'arena>>,
     count: usize,
     depth: usize,
 ) -> Option<Array<Expression<'arena>>> {
@@ -199,10 +199,10 @@ pub fn parse<'arena>(
             for (position, node) in root.iter().enumerate() {
                 let payload = match node {
                     Lexeme::List(list, len) => Atom::Statement {
-                        body: parse(arena, list, *len, depth + 1).unwrap(),
+                        body: parse_list(arena, **list, *len, depth + 1).unwrap(),
                     },
                     Lexeme::Quoted(list, len) => Atom::Code {
-                        body: parse(arena, list, *len, depth + 1).unwrap(),
+                        body: parse_list(arena, **list, *len, depth + 1).unwrap(),
                     },
                     Lexeme::Symbol(name, _) => match *name {
                         "define" | "def" => Atom::Define,
@@ -267,4 +267,12 @@ pub fn parse<'arena>(
             }
             exprs
         })
+}
+
+pub fn parse<'arena>(
+    arena: &'arena Arena,
+    code: &'static str,
+) -> Option<Array<Expression<'arena>>> {
+    let (root, count) = lexer(arena, code).ok()?;
+    parse_list(arena, root, count, 0)
 }

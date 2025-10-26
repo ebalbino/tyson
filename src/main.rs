@@ -38,19 +38,10 @@ const CODE: &str = "
 fn main() {
     let block = MemoryBlock::with_capacity(megabytes(32));
     let arena = block.arena(megabytes(16)).unwrap();
-    let mut modules = List::new(&arena);
     let mut expressions = List::new(&arena);
 
-    for text in &[CODE] {
-        modules.push_back(&lexer(&arena, text).unwrap());
-    }
-
-    println!("Memory use after parsing: {:#?}", arena);
-
-    for module in modules.iter() {
-        let count = module.iter().count();
-        //print(&module, count, 0, false);
-        expressions.push_back(&parse(&arena, &module, count, 0));
+    for source in &[CODE] {
+        expressions.push_back(&parse(&arena, &source));
     }
 
     for expression in expressions.iter() {
