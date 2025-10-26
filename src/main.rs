@@ -1,4 +1,4 @@
-use tyson::parser::{lexer, parse};
+use tyson::read::{lexer, parse};
 use tyson::print::print;
 use tyson::{List, MemoryBlock};
 

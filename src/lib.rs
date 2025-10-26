@@ -5,7 +5,7 @@
 mod alloc;
 mod collections;
 pub mod env;
-pub mod parser;
+pub mod read;
 pub mod print;
 mod tokenizer;
 

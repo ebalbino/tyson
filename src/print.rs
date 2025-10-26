@@ -1,5 +1,5 @@
 use crate::Node;
-use crate::parser::Lexeme;
+use crate::read::Lexeme;
 
 pub fn print<'arena>(root: &Node<Lexeme>, count: usize, depth: usize, quoted: bool) {
     if depth > 0 {
