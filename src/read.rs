@@ -1,8 +1,34 @@
-use crate::tokenizer::{Token, tokenize};
 use crate::{Arena, Array, Box as ArenaBox, List, Node, make};
+use core::str::CharIndices;
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+enum Token<'code> {
+    LParen,
+    RParen,
+    LBracket,
+    RBracket,
+    LBrace,
+    RBrace,
+    True,
+    False,
+    Nil,
+    Quote,
+    Quasiquote,
+    Integer(&'code str),
+    Float(&'code str),
+    String(&'code str),
+    Symbol(&'code str),
+    Comment(&'code str),
+}
+
+struct Tokenizer<'code> {
+    code: &'code str,
+    char_indices: CharIndices<'code>,
+    current: Option<(usize, char)>,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Lexeme<'arena> {
+enum Lexeme<'arena> {
     Unit,
     Null,
     True,
@@ -31,7 +57,7 @@ pub enum Atom<'arena> {
     Cons,
     Head,
     Tail,
-    Binding { name: &'arena str, arity: usize },
+    Binding { name: &'arena str },
     Statement { body: Array<Expression<'arena>> },
     Code { body: Array<Expression<'arena>> },
     Add,
@@ -54,16 +80,217 @@ pub enum Atom<'arena> {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Expression<'arena> {
-    depth: usize,
-    position: usize,
-    payload: Atom<'arena>,
+    pub depth: usize,
+    pub payload: Atom<'arena>,
 }
 
-pub fn lexer<'arena>(
+pub fn parse<'arena>(
+    arena: &'arena Arena,
+    code: &'static str,
+) -> Option<Array<Expression<'arena>>> {
+    let (root, count) = lexer(arena, code).ok()?;
+    parse_list(arena, root, count, 0)
+}
+
+impl<'code> Tokenizer<'code> {
+    fn new(code: &'code str) -> Self {
+        let mut char_indices = code.char_indices();
+        let current = char_indices.next();
+        Self {
+            code,
+            char_indices,
+            current,
+        }
+    }
+
+    fn advance(&mut self) -> Option<(usize, char)> {
+        self.current = self.char_indices.next();
+        self.current
+    }
+
+    fn eat_whitespace(&mut self) {
+        while let Some((_, c)) = self.current {
+            if !c.is_whitespace() {
+                break;
+            }
+
+            self.advance();
+        }
+    }
+
+    fn read_number(&mut self) -> Option<&'code str> {
+        let mut start = None;
+        let mut end = None;
+
+        while let Some((i, c)) = self.current {
+            if start.is_none() {
+                start = Some(i);
+            }
+
+            if !c.is_numeric() && c != '.' && c != '-' {
+                end = Some(i);
+                break;
+            }
+
+            self.advance();
+        }
+
+        Some(&self.code[start?..end?])
+    }
+
+    fn read_string(&mut self) -> Option<&'code str> {
+        let mut start = None;
+        let mut end = None;
+
+        self.advance(); // Skip the opening quote
+        while let Some((i, c)) = self.current {
+            if start.is_none() {
+                start = Some(i);
+            }
+
+            if c == '"' {
+                end = Some(i);
+                self.advance(); // Skip the closing quote
+                break;
+            }
+
+            self.advance();
+        }
+
+        Some(&self.code[start?..end?])
+    }
+
+    fn read_symbol(&mut self) -> Option<&'code str> {
+        let mut start = None;
+        let mut end = None;
+
+        while let Some((i, c)) = self.current {
+            if start.is_none() {
+                start = Some(i);
+            }
+
+            if c.is_whitespace() || is_surrounding_punctuation(c) {
+                end = Some(i);
+                break;
+            }
+
+            self.advance();
+        }
+
+        Some(&self.code[start?..end?])
+    }
+
+    fn read_comment(&mut self) -> Option<&'code str> {
+        let mut start = None;
+        let mut end = None;
+
+        while let Some((i, c)) = self.current {
+            if start.is_none() {
+                start = Some(i);
+            }
+
+            if c == '\n' {
+                end = Some(i);
+                break;
+            }
+
+            self.advance();
+        }
+
+        Some(&self.code[start?..end?])
+    }
+}
+
+impl<'code> Iterator for Tokenizer<'code> {
+    type Item = Token<'code>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.eat_whitespace();
+        match self.current? {
+            (_, '(') => {
+                self.advance();
+                Some(Token::LParen)
+            }
+            (_, ')') => {
+                self.advance();
+                Some(Token::RParen)
+            }
+            (_, '[') => {
+                self.advance();
+                Some(Token::LBracket)
+            }
+            (_, ']') => {
+                self.advance();
+                Some(Token::RBracket)
+            }
+            (_, '{') => {
+                self.advance();
+                Some(Token::LBrace)
+            }
+            (_, '}') => {
+                self.advance();
+                Some(Token::RBrace)
+            }
+            (_, '\'') => {
+                self.advance();
+                Some(Token::Quote)
+            }
+            (_, '`') => {
+                self.advance();
+                Some(Token::Quasiquote)
+            }
+            (_, ';') => {
+                self.advance();
+                match self.current? {
+                    (_, ';') => self.read_comment().map(Token::Comment),
+                    _ => {
+                        panic!("Malformed comment");
+                    }
+                }
+            }
+            (_, '"') => self.read_string().map(Token::String),
+            (_, c) if c.is_numeric() => {
+                let val = self.read_number()?;
+                if val.contains('.') {
+                    Some(Token::Float(val))
+                } else {
+                    Some(Token::Integer(val))
+                }
+            }
+            (_, c) => match c {
+                '-' => {
+                    if let Some((_, next_char)) = self.char_indices.clone().peekable().peek() && next_char.is_numeric() {
+			let val = self.read_number()?;
+			if val.contains('.') {
+			    return Some(Token::Float(val));
+			} else {
+			    return Some(Token::Integer(val));
+                        }
+                    }
+
+                    self.read_symbol().map(|s| match s {
+                        "#f" | "false" => Token::False,
+                        "#t" | "true" => Token::True,
+                        "nil" => Token::Nil,
+                        _ => Token::Symbol(s),
+                    })
+                }
+                _ => self.read_symbol().map(|s| match s {
+                    "#f" | "false" => Token::False,
+                    "#t" | "true" => Token::True,
+                    "nil" => Token::Nil,
+                    _ => Token::Symbol(s),
+                }),
+            },
+        }
+    }
+}
+
+fn lexer<'arena>(
     arena: &'arena Arena,
     code: &'arena str,
 ) -> Result<(Node<Lexeme<'arena>>, usize), &'static str> {
-    let mut tokens = List::new(&arena);
+    let mut tokens = List::new(arena);
 
     for token in tokenize(code) {
         tokens.push_back(&token);
@@ -187,7 +414,7 @@ fn is_operator(s: &str) -> bool {
     }
 }
 
-pub fn parse_list<'arena>(
+fn parse_list<'arena>(
     arena: &'arena Arena<'arena>,
     root: Node<Lexeme<'arena>>,
     count: usize,
@@ -196,7 +423,7 @@ pub fn parse_list<'arena>(
     make!(arena, Expression, count)
         .map(Array::new)
         .map(|mut exprs| {
-            for (position, node) in root.iter().enumerate() {
+            for node in root.iter() {
                 let payload = match node {
                     Lexeme::List(list, len) => Atom::Statement {
                         body: parse_list(arena, **list, *len, depth + 1).unwrap(),
@@ -223,10 +450,7 @@ pub fn parse_list<'arena>(
                         "exp" => Atom::Exp,
                         "mod" => Atom::Mod,
                         "cons" => Atom::Cons,
-                        _ => {
-                            let arity = if position == 0 { count - 1 } else { 0 };
-                            Atom::Binding { name, arity }
-                        }
+                        _ => Atom::Binding { name },
                     },
                     Lexeme::Unit => Atom::Void,
                     Lexeme::Null => Atom::Nil,
@@ -259,20 +483,16 @@ pub fn parse_list<'arena>(
                         _ => panic!("Unsupported operator!"),
                     },
                 };
-                exprs.push(&Expression {
-                    depth,
-                    position,
-                    payload,
-                });
+                exprs.push(&Expression { depth, payload });
             }
             exprs
         })
 }
 
-pub fn parse<'arena>(
-    arena: &'arena Arena,
-    code: &'static str,
-) -> Option<Array<Expression<'arena>>> {
-    let (root, count) = lexer(arena, code).ok()?;
-    parse_list(arena, root, count, 0)
+fn is_surrounding_punctuation(c: char) -> bool {
+    c == '(' || c == ')' || c == '[' || c == ']' || c == '{' || c == '}'
+}
+
+fn tokenize<'code>(code: &'code str) -> impl Iterator<Item = Token<'code>> {
+    Tokenizer::new(code)
 }

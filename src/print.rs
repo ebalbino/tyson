@@ -1,84 +1,141 @@
-use crate::Node;
-use crate::read::Lexeme;
+use crate::read::{Atom, Expression};
+use std::fmt::{Error, Write};
 
-pub fn print<'arena>(root: &Node<Lexeme>, count: usize, depth: usize, quoted: bool) {
-    if depth > 0 {
-        for _ in 0..depth {
-            print!("  ");
-        }
-    }
+pub fn print<W: Write>(
+    strbuf: &mut W,
+    root: &[Expression],
+    quoted: bool,
+) -> Result<(), Error> {
+    for (position, expr) in root.iter().enumerate() {
+        let depth = expr.depth;
 
-    if quoted && depth == 0 {
-        print!("'(");
-    } else if depth == 0 {
-        print!("(");
-    }
+        if position == 0 && depth > 0 {
+            for _ in 0..depth - 1 {
+                write!(strbuf, "  ")?;
+            }
 
-    for (i, atom) in root.iter().enumerate() {
-        if depth != 0 && i == 0 {
             if quoted {
-                print!("'(");
+                write!(strbuf, "(quote ")?;
             } else {
-                print!("(");
+                write!(strbuf, "(")?;
             }
         }
 
-        if i != 0 {
-            print!(" ");
+        if position != 0 {
+            write!(strbuf, " ")?;
         }
 
-        match atom {
-            Lexeme::List(list, len) => {
-                print!("\n");
-                print(list, *len, depth + 1, false);
-                print!(")");
+        match expr.payload {
+            Atom::Statement { ref body } => {
+                writeln!(strbuf)?;
+                print(strbuf, body, false)?;
+                write!(strbuf, ")")?;
             }
-            Lexeme::Quoted(list, len) => {
-                print!("\n");
-                print(list, *len, depth + 1, true);
-                print!(")");
+            Atom::Code { ref body } => {
+                writeln!(strbuf)?;
+                print(strbuf, body, true)?;
+                write!(strbuf, ")")?;
             }
-            Lexeme::Integer(i) => {
-                print!("{}", i);
+            Atom::Int { inner } => {
+                write!(strbuf, "{}", inner)?;
             }
-            Lexeme::Double(d) => {
-                print!("{}", d);
+            Atom::Number { inner } => {
+                write!(strbuf, "{}", inner)?;
             }
-            Lexeme::False => {
-                print!("#f");
+            Atom::False => {
+                write!(strbuf, "#f")?;
             }
-            Lexeme::True => {
-                print!("#t");
+            Atom::True => {
+                write!(strbuf, "#t")?;
             }
-            Lexeme::Unit => {
+            Atom::Void => {
                 if quoted {
-                    print!("'()");
+                    write!(strbuf, "'()")?;
                 } else {
-                    print!("()");
+                    write!(strbuf, "()")?;
                 }
             }
-            Lexeme::Null => {
-                print!("#nil");
+            Atom::Nil => {
+                write!(strbuf, "#nil")?;
             }
-            Lexeme::String(s) => {
-                print!("{}", s);
+            Atom::String { inner } => {
+                write!(strbuf, "{}", inner)?;
             }
-            Lexeme::Symbol(s, quoted) => {
-                if *quoted {
-                    print!("'{}", s);
+            Atom::Buffer { data } => {
+                write!(strbuf, "buffer {}", data.len())?;
+            }
+            Atom::File { path, lazy } => {
+                if lazy {
+                    write!(strbuf, "lazyload \"{}\"", path)?;
                 } else {
-                    print!("{}", s);
+                    write!(strbuf, "load \"{}\"", path)?;
                 }
             }
-            Lexeme::Operator(s) => {
-                print!("{}", s);
+            Atom::Define => {
+                write!(strbuf, "define")?;
             }
-        }
-
-        if depth == 0 {
-            if i == count - 1 {
-                print!(")\n");
+            Atom::Cons => {
+                write!(strbuf, "cons")?;
+            }
+            Atom::Head => {
+                write!(strbuf, "head")?;
+            }
+            Atom::Tail => {
+                write!(strbuf, "tail")?;
+            }
+            Atom::Binding { name } => {
+                write!(strbuf, "{name}")?;
+            }
+            Atom::Add => {
+                write!(strbuf, "+")?;
+            }
+            Atom::Subtract => {
+                write!(strbuf, "-")?;
+            }
+            Atom::Multiply => {
+                write!(strbuf, "*")?;
+            }
+            Atom::Divide => {
+                write!(strbuf, "/")?;
+            }
+            Atom::Eq => {
+                write!(strbuf, "=")?;
+            }
+            Atom::Neq => {
+                write!(strbuf, "!=")?;
+            }
+            Atom::GT => {
+                write!(strbuf, ">")?;
+            }
+            Atom::LT => {
+                write!(strbuf, "<")?;
+            }
+            Atom::GTE => {
+                write!(strbuf, ">=")?;
+            }
+            Atom::LTE => {
+                write!(strbuf, "<=")?;
+            }
+            Atom::ArrowLeft => {
+                write!(strbuf, "->")?;
+            }
+            Atom::ArrowRight => {
+                write!(strbuf, "<-")?;
+            }
+            Atom::Negate => {
+                write!(strbuf, "!")?;
+            }
+            Atom::Exp => {
+                write!(strbuf, "**")?;
+            }
+            Atom::Mod => {
+                write!(strbuf, "%")?;
+            }
+            Atom::Remainder => {
+                write!(strbuf, "//")?;
             }
         }
     }
+
+    Ok(())
 }

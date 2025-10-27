@@ -4,10 +4,11 @@
 
 mod alloc;
 mod collections;
+
 pub mod env;
 pub mod read;
+pub mod eval;
 pub mod print;
-mod tokenizer;
 
 pub use alloc::*;
 pub use collections::*;

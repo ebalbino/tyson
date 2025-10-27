@@ -1,5 +1,5 @@
-use tyson::read::{lexer, parse};
 use tyson::print::print;
+use tyson::read::parse;
 use tyson::{List, MemoryBlock};
 
 fn megabytes(n: usize) -> usize {
@@ -41,11 +41,26 @@ fn main() {
     let mut expressions = List::new(&arena);
 
     for source in &[CODE] {
-        expressions.push_back(&parse(&arena, &source));
+        expressions.push_back(&parse(&arena, source).expect("Unable to parse code!"));
     }
 
-    for expression in expressions.iter() {
-        println!("{:#?}", expression);
+    for (expression, code) in expressions.iter().zip(&[CODE]) {
+        let mut string = String::with_capacity(4096);
+        println!("count: {}", expression.len());
+        let _ = print(&mut string, expression, false);
+        println!("{code}");
+        println!();
+        println!("{string}");
+
+        if *code == string {
+            println!("Exact match!");
+        } else {
+            println!("Does not match!");
+        }
+    }
+
+    for source in &[CODE] {
+        expressions.push_back(&parse(&arena, source).expect("Unable to parse code!"));
     }
 
     println!("{:#?}", arena);
