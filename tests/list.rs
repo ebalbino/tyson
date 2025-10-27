@@ -1,6 +1,6 @@
+use std::vec::Vec;
 use tyson::List;
 use tyson::MemoryBlock as Block; // bring trait for .arena()
-use std::vec::Vec;
 
 #[test]
 fn test_list_operations() {

@@ -26,7 +26,7 @@ pub fn print<W: Write>(
         }
 
         match expr.payload {
-            Atom::Statement { ref body } => {
+            Atom::List { ref body } => {
                 writeln!(strbuf)?;
                 print(strbuf, body, false)?;
                 write!(strbuf, ")")?;
@@ -83,7 +83,7 @@ pub fn print<W: Write>(
             Atom::Tail => {
                 write!(strbuf, "tail")?;
             }
-            Atom::Binding { name } => {
+            Atom::Symbol { name } => {
                 write!(strbuf, "{name}")?;
             }
             Atom::Add => {

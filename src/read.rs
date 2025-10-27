@@ -57,8 +57,8 @@ pub enum Atom<'arena> {
     Cons,
     Head,
     Tail,
-    Binding { name: &'arena str },
-    Statement { body: Array<Expression<'arena>> },
+    Symbol { name: &'arena str },
+    List { body: Array<Expression<'arena>> },
     Code { body: Array<Expression<'arena>> },
     Add,
     Subtract,
@@ -396,22 +396,18 @@ fn lex_tokens<'arena>(
         }
     }
 
-    return make!(arena, Node<Lexeme>)
+    make!(arena, Node<Lexeme>)
         .map(ArenaBox::new)
         .map(|mut b| {
             let count = list.len();
             *b = list.to_node().unwrap();
             Lexeme::List(b, count)
         })
-        .ok_or("Failed to close list");
+        .ok_or("Failed to close list")
 }
 
 fn is_operator(s: &str) -> bool {
-    match s {
-        "+" | "-" | "*" | "/" | "//" | "=" | "!=" | ">" | "<" | ">=" | "<=" | "->" | "<-" | "!"
-        | "^" | "%" => true,
-        _ => false,
-    }
+    matches!(s, "+" | "-" | "*" | "/" | "//" | "=" | "!=" | ">" | "<" | ">=" | "<=" | "->" | "<-" | "!" | "^" | "%")
 }
 
 fn parse_list<'arena>(
@@ -425,7 +421,7 @@ fn parse_list<'arena>(
         .map(|mut exprs| {
             for node in root.iter() {
                 let payload = match node {
-                    Lexeme::List(list, len) => Atom::Statement {
+                    Lexeme::List(list, len) => Atom::List {
                         body: parse_list(arena, **list, *len, depth + 1).unwrap(),
                     },
                     Lexeme::Quoted(list, len) => Atom::Code {
@@ -450,7 +446,7 @@ fn parse_list<'arena>(
                         "exp" => Atom::Exp,
                         "mod" => Atom::Mod,
                         "cons" => Atom::Cons,
-                        _ => Atom::Binding { name },
+                        _ => Atom::Symbol { name },
                     },
                     Lexeme::Unit => Atom::Void,
                     Lexeme::Null => Atom::Nil,
